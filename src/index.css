@@ -1,199 +1,291 @@
 @import "tailwindcss";
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
 
-* {
-  box-sizing: border-box;
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+/* ================================================================
+   VYOM ACADEMY: ADD EVERYTHING BELOW TO THE *BOTTOM* of src/index.css
+   (do not delete your existing CSS: your hero classes such as
+   gold-shimmer, hero-grid, animate-float, animate-wiggle stay in use)
+   ================================================================ */
+
+
+/* ---------- 1. PAGE BASICS ---------- */
 html {
-  scroll-behavior: smooth;
-  /* keeps section headings from hiding under the sticky nav */
-  scroll-padding-top: 5rem;
+  background: #01173d;          /* colour behind everything (also on overscroll) */
+  scroll-padding-top: 96px;     /* anchor links stop below the sticky header */
 }
 
-body {
-  margin: 0;
-  font-family: "Plus Jakarta Sans", Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
+
+/* ---------- 2. SITE-WIDE ANIMATED BACKGROUND ----------
+   Rendered by <SiteBackground /> in App.jsx. Layers, back to front:
+   gradient > moving grid > drifting orbs > light beam > mouse spotlight > network canvas */
+
+/* 2a. Slowly shifting dark-blue gradient */
+.site-gradient {
+  background: linear-gradient(120deg, #06122a, #0b1f3a 30%, #13336a 55%, #0b1f3a 75%, #06122a);
+  background-size: 300% 300%;
+  animation: site-pan 26s ease-in-out infinite;
+}
+@keyframes site-pan {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
 }
 
-/* ==================================================
-   HERO EFFECTS
-================================================== */
-
-/* Faint grid that fades out toward the edges */
-.hero-grid {
+/* 2b. Faint grid that glides diagonally */
+.site-grid {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 56px 56px;
-  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+    linear-gradient(rgba(147, 180, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(147, 180, 255, 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+  animation: site-grid 40s linear infinite;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 85%);
+}
+@keyframes site-grid {
+  to { background-position: 64px 64px, 64px 64px; }
 }
 
-/* Gold shimmer sweeping across "Lead Tomorrow." */
-.gold-shimmer {
-  background-image: linear-gradient(
-    100deg,
-    #c9a24a 0%,
-    #d7b45a 35%,
-    #fff0b8 50%,
-    #d7b45a 65%,
-    #c9a24a 100%
-  );
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: shimmer 5s linear infinite;
+/* 2c. Big blurred gold / orange / blue orbs that drift (and shift a little when you scroll) */
+.site-orbs { transform: translateY(calc(var(--sy, 0) * -0.08px)); }
+.site-orb  { position: absolute; border-radius: 9999px; filter: blur(110px); }
+.site-orb-gold   { width: 520px; height: 520px; background: rgba(215, 180, 90, 0.30);  top: -8%;    right: -8%; animation: site-orb-a 20s ease-in-out infinite; }
+.site-orb-orange { width: 440px; height: 440px; background: rgba(255, 122, 26, 0.22);  bottom: -10%; left: -8%;  animation: site-orb-b 24s ease-in-out infinite; }
+.site-orb-blue   { width: 640px; height: 640px; background: rgba(60, 110, 230, 0.25);  top: 35%;    left: 35%;  animation: site-orb-c 28s ease-in-out infinite; }
+
+@keyframes site-orb-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(-18vw, 14vh) scale(1.15); }
+  66%      { transform: translate(-6vw, 30vh) scale(0.9); }
+}
+@keyframes site-orb-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%      { transform: translate(22vw, -18vh) scale(1.2); }
+  75%      { transform: translate(10vw, -32vh) scale(0.9); }
+}
+@keyframes site-orb-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-25vw, -15vh) scale(1.18); }
 }
 
-@keyframes shimmer {
-  to {
-    background-position: -220% center;
-  }
+/* 2d. A soft diagonal beam of light that sweeps across the screen */
+.site-beam {
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.05) 50%, transparent 60%);
+  background-size: 250% 100%;
+  animation: site-beam 14s linear infinite;
+}
+@keyframes site-beam {
+  from { background-position: 150% 0; }
+  to   { background-position: -150% 0; }
 }
 
-/* Gentle floating motion for the logo card and chips */
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-14px);
-  }
-}
-
-.animate-float {
-  animation: float 7s ease-in-out infinite;
-}
-
-.animate-float-slow {
-  animation: float 9s ease-in-out infinite;
-  animation-delay: -3s;
-}
-
-.animate-float-delay {
-  animation: float 8s ease-in-out infinite;
-  animation-delay: -5s;
-}
-
-/* Logo wiggle: rests, then gives a quick playful shake every few seconds.
-   Wiggles continuously while the mouse is over it. */
-@keyframes wiggle {
-  0%,
-  58%,
-  100% {
-    transform: rotate(0deg);
-  }
-  62% {
-    transform: rotate(-6deg);
-  }
-  67% {
-    transform: rotate(5deg);
-  }
-  72% {
-    transform: rotate(-4deg);
-  }
-  77% {
-    transform: rotate(3deg);
-  }
-  82% {
-    transform: rotate(-1.5deg);
-  }
-  88% {
-    transform: rotate(0deg);
-  }
-}
-
-@keyframes wiggle-fast {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-5deg);
-  }
-  75% {
-    transform: rotate(5deg);
-  }
-}
-
-.animate-wiggle {
-  transform-origin: 50% 60%;
-  animation: wiggle 5s ease-in-out infinite;
-}
-
-.animate-wiggle:hover {
-  animation: wiggle-fast 0.45s ease-in-out infinite;
-}
-
-/* Soft gold light that follows the mouse inside the hero */
-.hero-spotlight {
-  --mx: 50%;
-  --my: 40%;
-  background: radial-gradient(
-    520px circle at var(--mx) var(--my),
-    rgba(215, 180, 90, 0.17),
-    transparent 65%
-  );
+/* 2e. Gold spotlight that follows the mouse */
+.site-spot {
+  background: radial-gradient(520px circle at var(--mx, 50%) var(--my, 30%), rgba(215, 180, 90, 0.14), transparent 60%);
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.4s;
 }
+.site-spot.is-active { opacity: 1; }
 
-.hero-spotlight.is-active {
-  opacity: 1;
-}
 
-/* Slow pulsing gold halo behind the logo card */
-@keyframes glow-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(1);
+/* ---------- 3. FLOATING WHITE BOXES (every text box in the lower sections) ---------- */
+@layer components {
+  .float-box {
+    background: #ffffff;
+    color: #102b50;
+    border-radius: 24px;
+    border-top: 5px solid #ff7a1a;                 /* orange highlight edge */
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    transition: box-shadow 0.3s;
   }
-  50% {
-    opacity: 0.95;
-    transform: scale(1.08);
-  }
-}
-
-.animate-glow {
-  animation: glow-pulse 6s ease-in-out infinite;
-}
-
-/* Scroll cue bouncing chevron */
-@keyframes nudge {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translateY(8px);
-    opacity: 1;
+  .float-box:hover {
+    box-shadow: 0 30px 70px rgba(215, 180, 90, 0.35);   /* gold glow on hover */
   }
 }
 
-.animate-nudge {
-  animation: nudge 1.8s ease-in-out infinite;
-}
 
-/* Respect users who prefer less motion */
+/* ---------- 4. ACCESSIBILITY: no motion for people who ask for none ---------- */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .gold-shimmer,
-  .animate-float,
-  .animate-float-slow,
-  .animate-float-delay,
-  .animate-glow,
-  .animate-nudge,
-  .animate-wiggle,
-  .animate-wiggle:hover {
-    animation: none;
-  }
+  .site-gradient, .site-grid, .site-orb, .site-beam { animation: none; }
+  html { scroll-behavior: auto; }
 }

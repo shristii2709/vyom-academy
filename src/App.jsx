@@ -45,7 +45,7 @@ import {
 const logoSrc = `${import.meta.env.BASE_URL}vyom-logo.png`;
 
 /* ==================================================
-   WEBSITE DATA
+   A. WEBSITE DATA  (edit texts and lists here)
 ================================================== */
 
 const programs = [
@@ -125,8 +125,414 @@ const emptyJobForm = {
   applyUrl: ""
 };
 
+/* Shared input / label styles (used by the forms below) */
+const labelCls = "mb-2 block text-sm font-semibold text-[#102B50]";
+const jobInputCls =
+  "w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]";
+const feedbackInputCls =
+  "w-full rounded-lg border border-slate-200 px-4 py-3.5 text-sm outline-none focus:border-[#B28A36]";
+const authInputCls =
+  "w-full rounded-xl border border-slate-200 py-3.5 pl-11 text-sm outline-none transition focus:border-[#B28A36] focus:ring-2 focus:ring-[#D7B45A]/15";
+
 /* ==================================================
-   JOB BOARD
+   B. SITE-WIDE EFFECTS
+================================================== */
+
+/* B1. SITE BACKGROUND
+   One fixed layer behind the WHOLE page (same effect as the old hero):
+   moving gradient, gliding grid, drifting gold/orange/blue orbs, a sweeping
+   light beam, a mouse spotlight, and a network of dots that drift, react to
+   the cursor, shift slightly when you scroll, and send tiny gold signals
+   along their lines. All the CSS is in index.css (section 2). */
+function SiteBackground() {
+  const canvasRef = useRef(null);
+  const spotRef = useRef(null);
+  const orbsRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return undefined;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    const LINK_DISTANCE = 140;
+    const MOUSE_DISTANCE = 180;
+
+    let width = 0;
+    let height = 0;
+    let nodes = [];
+    let pulses = [];
+    let frameId = 0;
+    let scrollY = window.scrollY;
+    let lastPulse = 0;
+    const mouse = { x: 0, y: 0, active: false };
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth;
+      height = window.innerHeight;
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const count = Math.min(110, Math.round((width * height) / 14000));
+
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        r: Math.random() * 1.4 + 0.8,
+        z: Math.random() * 0.7 + 0.3, // depth: deeper dots shift less on scroll
+        gold: Math.random() < 0.22
+      }));
+    }
+
+    function draw(time) {
+      ctx.clearRect(0, 0, width, height);
+
+      // Move the dots and work out where each one is drawn
+      const pts = nodes.map((n) => {
+        const py =
+          (((n.y - scrollY * 0.1 * n.z) % height) + height) % height;
+
+        if (mouse.active) {
+          const dx = n.x - mouse.x;
+          const dy = py - mouse.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < MOUSE_DISTANCE && dist > 1) {
+            const push = (1 - dist / MOUSE_DISTANCE) * 0.9;
+            n.x += (dx / dist) * push;
+            n.y += (dy / dist) * push;
+          }
+        }
+
+        n.x += n.vx;
+        n.y += n.vy;
+
+        if (n.x < -10) n.x = width + 10;
+        if (n.x > width + 10) n.x = -10;
+        if (n.y < -10) n.y = height + 10;
+        if (n.y > height + 10) n.y = -10;
+
+        return { x: n.x, y: py, n };
+      });
+
+      // Lines between nearby dots
+      ctx.lineWidth = 1;
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const a = pts[i];
+          const b = pts[j];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+
+          if (dist < LINK_DISTANCE) {
+            const alpha = (1 - dist / LINK_DISTANCE) * 0.28;
+            ctx.strokeStyle =
+              a.n.gold || b.n.gold
+                ? `rgba(215,180,90,${alpha})`
+                : `rgba(147,180,255,${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Gold lines reaching toward the cursor
+      if (mouse.active) {
+        for (const p of pts) {
+          const dist = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+
+          if (dist < MOUSE_DISTANCE) {
+            ctx.strokeStyle = `rgba(233,205,131,${(1 - dist / MOUSE_DISTANCE) * 0.55})`;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Small gold signals that travel along the lines
+      if (time - lastPulse > 700 && pts.length > 1) {
+        lastPulse = time;
+        const a = pts[Math.floor(Math.random() * pts.length)];
+        let best = null;
+        let bestDist = LINK_DISTANCE;
+
+        for (const b of pts) {
+          if (b === a) continue;
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < bestDist) {
+            bestDist = d;
+            best = b;
+          }
+        }
+
+        if (best) pulses.push({ a: a.n, b: best.n, t: 0 });
+      }
+
+      pulses = pulses.filter((p) => p.t < 1);
+      for (const p of pulses) {
+        p.t += 0.025;
+        const ax = p.a.x;
+        const ay = (((p.a.y - scrollY * 0.1 * p.a.z) % height) + height) % height;
+        const bx = p.b.x;
+        const by = (((p.b.y - scrollY * 0.1 * p.b.z) % height) + height) % height;
+        const x = ax + (bx - ax) * p.t;
+        const y = ay + (by - ay) * p.t;
+
+        ctx.fillStyle = "rgba(255,210,120,0.95)";
+        ctx.shadowColor = "rgba(255,170,60,0.9)";
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // The dots
+      for (const p of pts) {
+        ctx.fillStyle = p.n.gold
+          ? "rgba(233,205,131,0.9)"
+          : "rgba(190,210,255,0.7)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.n.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function loop(time) {
+      if (!document.hidden) draw(time);
+      frameId = requestAnimationFrame(loop);
+    }
+
+    function onPointerMove(e) {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      mouse.active = true;
+
+      const spot = spotRef.current;
+      if (spot) {
+        spot.style.setProperty("--mx", `${e.clientX}px`);
+        spot.style.setProperty("--my", `${e.clientY}px`);
+        spot.classList.add("is-active");
+      }
+    }
+
+    function onPointerOut(e) {
+      if (!e.relatedTarget) {
+        mouse.active = false;
+        spotRef.current?.classList.remove("is-active");
+      }
+    }
+
+    function onScroll() {
+      scrollY = window.scrollY;
+      orbsRef.current?.style.setProperty("--sy", scrollY);
+    }
+
+    resize();
+    onScroll();
+    draw(0);
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    if (!reduceMotion) {
+      frameId = requestAnimationFrame(loop);
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      document.addEventListener("mouseout", onPointerOut);
+    }
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("mouseout", onPointerOut);
+    };
+  }, []);
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+    >
+      <div className="site-gradient absolute inset-0" />
+      <div className="site-grid absolute inset-0" />
+
+      <div ref={orbsRef} className="site-orbs absolute inset-0">
+        <div className="site-orb site-orb-gold" />
+        <div className="site-orb site-orb-orange" />
+        <div className="site-orb site-orb-blue" />
+      </div>
+
+      <div className="site-beam absolute inset-0" />
+      <div ref={spotRef} className="site-spot absolute inset-0" />
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+    </div>
+  );
+}
+
+/* B2. CURSOR GLOW
+   A small gold dot plus a trailing ring that follows the mouse across the
+   whole page and grows over links and buttons.
+   Only shown on devices with a real mouse; the normal cursor stays visible. */
+function CursorGlow() {
+  const [enabled] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  const [onTarget, setOnTarget] = useState(false);
+  const [shown, setShown] = useState(false);
+
+  const x = useMotionValue(-100);
+  const y = useMotionValue(-100);
+  const ringX = useSpring(x, { stiffness: 140, damping: 18, mass: 0.6 });
+  const ringY = useSpring(y, { stiffness: 140, damping: 18, mass: 0.6 });
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+
+    function onMove(e) {
+      x.set(e.clientX);
+      y.set(e.clientY);
+      setShown(true);
+      setOnTarget(
+        Boolean(
+          e.target instanceof Element &&
+            e.target.closest(
+              "a, button, input, select, textarea, label, [role='button']"
+            )
+        )
+      );
+    }
+
+    function onLeaveWindow(e) {
+      if (!e.relatedTarget) setShown(false);
+    }
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("mouseout", onLeaveWindow);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      document.removeEventListener("mouseout", onLeaveWindow);
+    };
+  }, [enabled, x, y]);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-[#D7B45A] bg-[#D7B45A]/10"
+        style={{ x: ringX, y: ringY, marginLeft: -18, marginTop: -18 }}
+        animate={{ scale: onTarget ? 1.7 : 1, opacity: shown ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+      />
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2 w-2 rounded-full bg-[#D7B45A]"
+        style={{ x, y, marginLeft: -4, marginTop: -4 }}
+        animate={{ opacity: shown ? 1 : 0 }}
+        transition={{ duration: 0.2 }}
+      />
+    </>
+  );
+}
+
+/* B3. TILT CARD
+   Tilts its children in 3D toward the mouse, then springs back. */
+function TiltCard({ children, className = "" }) {
+  const rotateX = useMotionValue(0);
+  const rotateY = useMotionValue(0);
+  const springX = useSpring(rotateX, { stiffness: 150, damping: 14 });
+  const springY = useSpring(rotateY, { stiffness: 150, damping: 14 });
+
+  function onMove(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+
+    rotateY.set(px * 16);
+    rotateX.set(-py * 16);
+  }
+
+  function onLeave() {
+    rotateX.set(0);
+    rotateY.set(0);
+  }
+
+  return (
+    <motion.div
+      onPointerMove={onMove}
+      onPointerLeave={onLeave}
+      style={{ rotateX: springX, rotateY: springY, transformPerspective: 900 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ==================================================
+   C. SHARED PIECES
+================================================== */
+
+/* C1. FLOATING WHITE BOX
+   Slides up when scrolled into view, lifts on hover.
+   Style (white, orange top edge, gold glow) is `.float-box` in index.css.
+   Set lift={false} for big boxes that hold forms. */
+function FloatBox({ children, className = "", delay = 0, lift = true }) {
+  return (
+    <motion.div
+      className={`float-box ${className}`}
+      initial={{ opacity: 0, y: 50 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12 }}
+      transition={{ duration: 0.7, delay }}
+      whileHover={lift ? { y: -6, transition: { duration: 0.25 } } : undefined}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* C2. SECTION HEADING for text that sits directly on the dark background */
+function SectionHeading({ eyebrow, title, text, center = false }) {
+  return (
+    <div className={center ? "mx-auto max-w-3xl text-center" : ""}>
+      <span className="text-xs font-bold tracking-[3px] text-[#D7B45A]">
+        {eyebrow}
+      </span>
+
+      <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white md:text-5xl">
+        {title}
+      </h2>
+
+      {text && (
+        <p className="mt-5 max-w-xl leading-7 text-blue-100/80 md:mx-0">
+          {text}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ==================================================
+   D. JOB BOARD
 ================================================== */
 
 function JobBoard() {
@@ -165,207 +571,203 @@ function JobBoard() {
   }
 
   return (
-    <section id="jobs" className="bg-white px-6 py-24">
+    <section id="jobs" className="px-6 py-24">
       <div className="mx-auto max-w-7xl">
 
+        {/* D1. heading + Post a Job button */}
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <span className="text-xs font-bold tracking-[3px] text-[#B28A36]">
-              YOUR NEXT OPPORTUNITY
-            </span>
-
-            <h2 className="mt-4 text-4xl font-extrabold text-[#102B50] md:text-5xl">
-              Discover. Apply. Grow.
-            </h2>
-
-            <p className="mt-4 max-w-xl leading-7 text-slate-500">
-              Explore career opportunities, internships and professional
-              openings across industries.
-            </p>
-          </div>
+          <SectionHeading
+            eyebrow="YOUR NEXT OPPORTUNITY"
+            title="Discover. Apply. Grow."
+            text="Explore career opportunities, internships and professional openings across industries."
+          />
 
           <button
             onClick={() => setPostOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#102B50] px-6 py-4 font-semibold text-white transition hover:bg-[#1C416E]"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#D7B45A] px-6 py-4 font-bold text-[#102B50] shadow-lg shadow-[#D7B45A]/30 transition hover:-translate-y-0.5 hover:bg-[#E9CD83]"
           >
             <Plus size={19} />
             Post a Job
           </button>
         </div>
 
-        {/* SEARCH AND FILTERS */}
-        <div className="mt-12 rounded-2xl border border-slate-200 bg-[#F4F7FC] p-5 md:p-7">
-          <div className="mb-5 flex items-center gap-2 font-bold text-[#102B50]">
-            <Filter size={19} className="text-[#B28A36]" />
-            Find Your Opportunity
-          </div>
+        {/* D2. floating white box holding the filters and listings */}
+        <FloatBox lift={false} className="mt-12 p-5 md:p-8">
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="relative">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                size={19}
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Job title or company"
-                className="w-full rounded-xl border border-slate-200 bg-white py-4 pl-12 pr-4 text-sm outline-none focus:border-[#B28A36]"
-              />
+          {/* SEARCH AND FILTERS */}
+          <div className="rounded-2xl border border-slate-200 bg-[#F4F7FC] p-5 md:p-7">
+            <div className="mb-5 flex items-center gap-2 font-bold text-[#102B50]">
+              <Filter size={19} className="text-[#B28A36]" />
+              Find Your Opportunity
             </div>
 
-            <div className="relative">
-              <MapPin
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                size={19}
-              />
-              <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="City or location"
-                className="w-full rounded-xl border border-slate-200 bg-white py-4 pl-12 pr-4 text-sm outline-none focus:border-[#B28A36]"
-              />
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="relative">
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={19}
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Job title or company"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-4 pl-12 pr-4 text-sm outline-none focus:border-[#B28A36]"
+                />
+              </div>
+
+              <div className="relative">
+                <MapPin
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={19}
+                />
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="City or location"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-4 pl-12 pr-4 text-sm outline-none focus:border-[#B28A36]"
+                />
+              </div>
+
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none focus:border-[#B28A36]"
+              >
+                <option>All types</option>
+                <option>Full-time</option>
+                <option>Part-time</option>
+                <option>Internship</option>
+                <option>Contract</option>
+              </select>
             </div>
 
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none focus:border-[#B28A36]"
-            >
-              <option>All types</option>
-              <option>Full-time</option>
-              <option>Part-time</option>
-              <option>Internship</option>
-              <option>Contract</option>
-            </select>
-          </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-slate-500">
+                Search available listings using the filters above.
+              </span>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs text-slate-500">
-              Search available listings using the filters above.
-            </span>
-
-            <button
-              onClick={() => {
-                setSearch("");
-                setLocation("");
-                setType("All types");
-              }}
-              className="text-sm font-semibold text-[#B28A36] hover:underline"
-            >
-              Clear filters
-            </button>
-          </div>
-        </div>
-
-        {/* JOB LISTINGS */}
-        <div className="mt-10 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-[#102B50]">
-            Available Opportunities
-          </h3>
-
-          <span className="text-sm text-slate-500">
-            {filteredJobs.length} listing(s)
-          </span>
-        </div>
-
-        {filteredJobs.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-[#F8FAFD] px-6 py-16 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#102B50] text-[#D7B45A]">
-              <BriefcaseBusiness size={29} />
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setLocation("");
+                  setType("All types");
+                }}
+                className="text-sm font-semibold text-[#B28A36] hover:underline"
+              >
+                Clear filters
+              </button>
             </div>
+          </div>
 
-            <h3 className="mt-6 text-xl font-bold text-[#102B50]">
-              {jobs.length === 0
-                ? "No active job listings yet"
-                : "No matching opportunities found"}
+          {/* JOB LISTINGS */}
+          <div className="mt-10 flex items-center justify-between">
+            <h3 className="text-xl font-bold text-[#102B50]">
+              Available Opportunities
             </h3>
 
-            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
-              {jobs.length === 0
-                ? "New opportunities will appear here when genuine job listings are added."
-                : "Try changing your search terms or clearing your filters."}
-            </p>
-
-            {jobs.length === 0 && (
-              <button
-                onClick={() => setPostOpen(true)}
-                className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#102B50] px-6 py-3 font-semibold text-white hover:bg-[#1C416E]"
-              >
-                Post the First Opportunity
-                <ArrowRight size={17} />
-              </button>
-            )}
+            <span className="text-sm text-slate-500">
+              {filteredJobs.length} listing(s)
+            </span>
           </div>
-        ) : (
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
-            {filteredJobs.map((job) => (
-              <motion.div
-                key={job.id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#102B50] text-[#D7B45A]">
-                      <Building2 size={23} />
+
+          {filteredJobs.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-[#F8FAFD] px-6 py-16 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#102B50] text-[#D7B45A]">
+                <BriefcaseBusiness size={29} />
+              </div>
+
+              <h3 className="mt-6 text-xl font-bold text-[#102B50]">
+                {jobs.length === 0
+                  ? "No active job listings yet"
+                  : "No matching opportunities found"}
+              </h3>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-slate-500">
+                {jobs.length === 0
+                  ? "New opportunities will appear here when genuine job listings are added."
+                  : "Try changing your search terms or clearing your filters."}
+              </p>
+
+              {jobs.length === 0 && (
+                <button
+                  onClick={() => setPostOpen(true)}
+                  className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#102B50] px-6 py-3 font-semibold text-white hover:bg-[#1C416E]"
+                >
+                  Post the First Opportunity
+                  <ArrowRight size={17} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              {filteredJobs.map((job) => (
+                <motion.div
+                  key={job.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#102B50] text-[#D7B45A]">
+                        <Building2 size={23} />
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-[#102B50]">
+                          {job.title}
+                        </h4>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {job.company}
+                        </p>
+                      </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-bold text-[#102B50]">
-                        {job.title}
-                      </h4>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {job.company}
-                      </p>
-                    </div>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                      Preview only
+                    </span>
                   </div>
 
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                    Preview only
-                  </span>
-                </div>
+                  <div className="mt-6 flex flex-wrap gap-4 text-xs text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin size={15} /> {job.location}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <BriefcaseBusiness size={15} /> {job.type}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={15} /> {job.experience}
+                    </span>
+                  </div>
 
-                <div className="mt-6 flex flex-wrap gap-4 text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin size={15} /> {job.location}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <BriefcaseBusiness size={15} /> {job.type}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock size={15} /> {job.experience}
-                  </span>
-                </div>
+                  <p className="mt-5 text-sm leading-7 text-slate-600">
+                    {job.description}
+                  </p>
 
-                <p className="mt-5 text-sm leading-7 text-slate-600">
-                  {job.description}
-                </p>
+                  <div className="mt-6 border-t border-slate-100 pt-5">
+                    <span className="text-xs font-medium text-amber-700">
+                      Local browser preview — not publicly published
+                    </span>
 
-                <div className="mt-6 border-t border-slate-100 pt-5">
-                  <span className="text-xs font-medium text-amber-700">
-                    Local browser preview — not publicly published
-                  </span>
-
-                  {job.applyUrl && (
-                    <a
-                      href={job.applyUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 flex items-center gap-2 font-bold text-[#102B50] hover:text-[#B28A36]"
-                    >
-                      Open application link <ArrowRight size={17} />
-                    </a>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
+                    {job.applyUrl && (
+                      <a
+                        href={job.applyUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 flex items-center gap-2 font-bold text-[#102B50] hover:text-[#B28A36]"
+                      >
+                        Open application link <ArrowRight size={17} />
+                      </a>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </FloatBox>
       </div>
 
-      {/* POST JOB MODAL */}
+      {/* D3. POST JOB MODAL */}
       <AnimatePresence>
         {postOpen && (
           <motion.div
@@ -409,52 +811,44 @@ function JobBoard() {
               <form onSubmit={handlePost} className="mt-7 space-y-5">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                      Job title *
-                    </label>
+                    <label className={labelCls}>Job title *</label>
                     <input
                       required
                       value={form.title}
                       onChange={(e) => setForm({ ...form, title: e.target.value })}
                       placeholder="e.g. AI Engineer"
-                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                      className={jobInputCls}
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                      Company name *
-                    </label>
+                    <label className={labelCls}>Company name *</label>
                     <input
                       required
                       value={form.company}
                       onChange={(e) => setForm({ ...form, company: e.target.value })}
                       placeholder="Company name"
-                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                      className={jobInputCls}
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                      Location *
-                    </label>
+                    <label className={labelCls}>Location *</label>
                     <input
                       required
                       value={form.location}
                       onChange={(e) => setForm({ ...form, location: e.target.value })}
                       placeholder="e.g. Dehradun / Remote"
-                      className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                      className={jobInputCls}
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                      Employment type *
-                    </label>
+                    <label className={labelCls}>Employment type *</label>
                     <select
                       value={form.type}
                       onChange={(e) => setForm({ ...form, type: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                      className={`${jobInputCls} bg-white`}
                     >
                       <option>Full-time</option>
                       <option>Part-time</option>
@@ -465,42 +859,36 @@ function JobBoard() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                    Experience required *
-                  </label>
+                  <label className={labelCls}>Experience required *</label>
                   <input
                     required
                     value={form.experience}
                     onChange={(e) => setForm({ ...form, experience: e.target.value })}
                     placeholder="e.g. Fresher / 2 years"
-                    className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                    className={jobInputCls}
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                    Job description *
-                  </label>
+                  <label className={labelCls}>Job description *</label>
                   <textarea
                     required
                     rows={4}
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                     placeholder="Describe the role and responsibilities..."
-                    className="w-full resize-y rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                    className={`${jobInputCls} resize-y`}
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                    Application URL
-                  </label>
+                  <label className={labelCls}>Application URL</label>
                   <input
                     type="url"
                     value={form.applyUrl}
                     onChange={(e) => setForm({ ...form, applyUrl: e.target.value })}
                     placeholder="https://company.com/careers"
-                    className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#B28A36]"
+                    className={jobInputCls}
                   />
                 </div>
 
@@ -536,7 +924,7 @@ function JobBoard() {
 }
 
 /* ==================================================
-   STUDENT FEEDBACK SYSTEM
+   E. STUDENT FEEDBACK SYSTEM
 ================================================== */
 
 function FeedbackSection() {
@@ -574,24 +962,25 @@ function FeedbackSection() {
   }
 
   return (
-    <section id="feedback" className="bg-[#F4F7FC] px-6 py-24">
+    <section id="feedback" className="px-6 py-24">
       <div className="mx-auto max-w-7xl">
 
+        {/* E1. heading */}
         <div className="mx-auto max-w-3xl text-center">
           <MessageSquare
-            className="mx-auto mb-5 text-[#B28A36]"
+            className="mx-auto mb-5 text-[#D7B45A]"
             size={36}
           />
 
-          <span className="text-xs font-bold tracking-[3px] text-[#B28A36]">
+          <span className="text-xs font-bold tracking-[3px] text-[#D7B45A]">
             YOUR VOICE MATTERS
           </span>
 
-          <h2 className="mt-4 text-3xl font-extrabold text-[#102B50] md:text-5xl">
+          <h2 className="mt-4 text-3xl font-extrabold text-white md:text-5xl">
             Real Experiences. Honest Feedback.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl leading-7 text-slate-500">
+          <p className="mx-auto mt-5 max-w-2xl leading-7 text-blue-100/80">
             Your experience helps us improve. Share your thoughts about
             your learning journey at Vyom Academy.
           </p>
@@ -599,8 +988,8 @@ function FeedbackSection() {
 
         <div className="mt-14 grid items-start gap-8 lg:grid-cols-2">
 
-          {/* FEEDBACK FORM */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm md:p-9">
+          {/* E2. FEEDBACK FORM (floating white box) */}
+          <FloatBox lift={false} className="p-7 md:p-9">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#102B50] text-[#D7B45A]">
                 <MessageSquare size={23} />
@@ -618,28 +1007,24 @@ function FeedbackSection() {
 
             <form onSubmit={handleFeedbackSubmit} className="mt-8 space-y-6">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                  Your Name *
-                </label>
+                <label className={labelCls}>Your Name *</label>
                 <input
                   required
                   maxLength={80}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Enter your name"
-                  className="w-full rounded-lg border border-slate-200 px-4 py-3.5 text-sm outline-none focus:border-[#B28A36]"
+                  className={feedbackInputCls}
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                  Course / Program *
-                </label>
+                <label className={labelCls}>Course / Program *</label>
                 <select
                   required
                   value={form.course}
                   onChange={(e) => setForm({ ...form, course: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none focus:border-[#B28A36]"
+                  className={`${feedbackInputCls} bg-white`}
                 >
                   <option value="">Select your program</option>
                   <option>Artificial Intelligence</option>
@@ -681,9 +1066,7 @@ function FeedbackSection() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                  Your Feedback *
-                </label>
+                <label className={labelCls}>Your Feedback *</label>
 
                 <textarea
                   required
@@ -693,7 +1076,7 @@ function FeedbackSection() {
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
                   placeholder="Tell us what you liked and what we could improve..."
-                  className="w-full resize-y rounded-lg border border-slate-200 px-4 py-3.5 text-sm leading-6 outline-none focus:border-[#B28A36]"
+                  className={`${feedbackInputCls} resize-y leading-6`}
                 />
 
                 <p className="mt-1 text-right text-xs text-slate-400">
@@ -729,17 +1112,17 @@ function FeedbackSection() {
                 not automatically as a verified testimonial.
               </p>
             </form>
-          </div>
+          </FloatBox>
 
-          {/* FEEDBACK DISPLAY */}
+          {/* E3. FEEDBACK DISPLAY */}
           <div>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-xl font-bold text-[#102B50]">
+                <h3 className="text-xl font-bold text-white">
                   Learner Feedback
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-blue-100/70">
                   Experiences submitted by learners
                 </p>
               </div>
@@ -750,7 +1133,7 @@ function FeedbackSection() {
             </div>
 
             {reviews.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+              <FloatBox lift={false} className="mt-6 px-6 py-16 text-center">
                 <Quote
                   size={38}
                   className="mx-auto mb-5 text-[#B28A36]"
@@ -764,7 +1147,7 @@ function FeedbackSection() {
                   We don't display invented reviews. Learner submissions
                   will appear here after they are provided and reviewed.
                 </p>
-              </div>
+              </FloatBox>
             ) : (
               <div className="mt-6 space-y-5">
                 <AnimatePresence>
@@ -773,7 +1156,7 @@ function FeedbackSection() {
                       key={review.id}
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                      className="float-box p-6"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -840,7 +1223,7 @@ function FeedbackSection() {
 }
 
 /* ==================================================
-   STUDENT AND TRAINER AUTHENTICATION UI
+   F. STUDENT AND TRAINER AUTHENTICATION UI
 ================================================== */
 
 function AuthModal({ role, onClose, initialMode = "signin" }) {
@@ -1057,9 +1440,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
               {/* FULL NAME */}
               {isRegister && (
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                    Full Name *
-                  </label>
+                  <label className={labelCls}>Full Name *</label>
 
                   <div className="relative">
                     <UserRound
@@ -1076,7 +1457,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
                         setForm({ ...form, name: e.target.value })
                       }
                       placeholder="Enter your full name"
-                      className="w-full rounded-xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#B28A36] focus:ring-2 focus:ring-[#D7B45A]/15"
+                      className={`${authInputCls} pr-4`}
                     />
                   </div>
                 </div>
@@ -1084,9 +1465,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
 
               {/* EMAIL */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                  Email Address *
-                </label>
+                <label className={labelCls}>Email Address *</label>
 
                 <div className="relative">
                   <Mail
@@ -1103,7 +1482,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
                       setForm({ ...form, email: e.target.value })
                     }
                     placeholder="you@example.com"
-                    className="w-full rounded-xl border border-slate-200 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#B28A36] focus:ring-2 focus:ring-[#D7B45A]/15"
+                    className={`${authInputCls} pr-4`}
                   />
                 </div>
               </div>
@@ -1111,7 +1490,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
               {/* COURSE OR EXPERTISE */}
               {isRegister && (
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
+                  <label className={labelCls}>
                     {isStudent ? "Course Interest *" : "Area of Expertise *"}
                   </label>
 
@@ -1179,7 +1558,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
                       setForm({ ...form, password: e.target.value })
                     }
                     placeholder="At least 8 characters"
-                    className="w-full rounded-xl border border-slate-200 py-3.5 pl-11 pr-12 text-sm outline-none transition focus:border-[#B28A36] focus:ring-2 focus:ring-[#D7B45A]/15"
+                    className={`${authInputCls} pr-12`}
                   />
 
                   <button
@@ -1196,9 +1575,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
               {/* CONFIRM PASSWORD */}
               {isRegister && (
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#102B50]">
-                    Confirm Password *
-                  </label>
+                  <label className={labelCls}>Confirm Password *</label>
 
                   <div className="relative">
                     <LockKeyhole
@@ -1219,7 +1596,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
                         })
                       }
                       placeholder="Re-enter your password"
-                      className="w-full rounded-xl border border-slate-200 py-3.5 pl-11 pr-12 text-sm outline-none transition focus:border-[#B28A36] focus:ring-2 focus:ring-[#D7B45A]/15"
+                      className={`${authInputCls} pr-12`}
                     />
 
                     <button
@@ -1311,322 +1688,7 @@ function AuthModal({ role, onClose, initialMode = "signin" }) {
 }
 
 /* ==================================================
-   INTERACTIVE EFFECTS
-================================================== */
-
-/* Animated "neural network" behind the hero.
-   Dots drift slowly and connect to each other. Near the cursor they
-   gently move away and gold lines reach out to the pointer.
-   A soft gold spotlight also follows the mouse.
-   Pauses when the hero is off-screen and respects reduced motion. */
-function HeroBackground() {
-  const canvasRef = useRef(null);
-  const spotRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const spot = spotRef.current;
-    const host = canvas?.parentElement;
-    const ctx = canvas?.getContext("2d");
-
-    if (!canvas || !host || !ctx) return undefined;
-
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
-    const LINK_DISTANCE = 130;
-    const MOUSE_DISTANCE = 170;
-
-    let width = 0;
-    let height = 0;
-    let nodes = [];
-    let frameId = 0;
-    let visible = true;
-    const mouse = { x: 0, y: 0, active: false };
-
-    function resize() {
-      const rect = host.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-      width = rect.width;
-      height = rect.height;
-
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const count = Math.min(90, Math.round((width * height) / 15000));
-
-      nodes = Array.from({ length: count }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        r: Math.random() * 1.4 + 0.8,
-        gold: Math.random() < 0.22
-      }));
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, width, height);
-
-      for (const n of nodes) {
-        if (mouse.active) {
-          const dx = n.x - mouse.x;
-          const dy = n.y - mouse.y;
-          const dist = Math.hypot(dx, dy);
-
-          if (dist < MOUSE_DISTANCE && dist > 1) {
-            const push = (1 - dist / MOUSE_DISTANCE) * 0.7;
-            n.x += (dx / dist) * push;
-            n.y += (dy / dist) * push;
-          }
-        }
-
-        n.x += n.vx;
-        n.y += n.vy;
-
-        if (n.x < -10) n.x = width + 10;
-        if (n.x > width + 10) n.x = -10;
-        if (n.y < -10) n.y = height + 10;
-        if (n.y > height + 10) n.y = -10;
-      }
-
-      // Lines between nearby dots
-      ctx.lineWidth = 1;
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i];
-          const b = nodes[j];
-          const dist = Math.hypot(a.x - b.x, a.y - b.y);
-
-          if (dist < LINK_DISTANCE) {
-            const alpha = (1 - dist / LINK_DISTANCE) * 0.28;
-            ctx.strokeStyle =
-              a.gold || b.gold
-                ? `rgba(215,180,90,${alpha})`
-                : `rgba(147,180,255,${alpha})`;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // Gold lines reaching toward the cursor
-      if (mouse.active) {
-        for (const n of nodes) {
-          const dist = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-
-          if (dist < MOUSE_DISTANCE) {
-            ctx.strokeStyle = `rgba(233,205,131,${(1 - dist / MOUSE_DISTANCE) * 0.55})`;
-            ctx.beginPath();
-            ctx.moveTo(n.x, n.y);
-            ctx.lineTo(mouse.x, mouse.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // The dots
-      for (const n of nodes) {
-        ctx.fillStyle = n.gold
-          ? "rgba(233,205,131,0.9)"
-          : "rgba(190,210,255,0.7)";
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    function loop() {
-      if (!document.hidden) draw();
-      frameId = requestAnimationFrame(loop);
-    }
-
-    function start() {
-      if (!frameId && !reduceMotion) loop();
-    }
-
-    function stop() {
-      cancelAnimationFrame(frameId);
-      frameId = 0;
-    }
-
-    function onPointerMove(e) {
-      const rect = host.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
-      mouse.active = true;
-
-      if (spot) {
-        spot.style.setProperty("--mx", `${mouse.x}px`);
-        spot.style.setProperty("--my", `${mouse.y}px`);
-        spot.classList.add("is-active");
-      }
-    }
-
-    function onPointerLeave() {
-      mouse.active = false;
-      spot?.classList.remove("is-active");
-    }
-
-    resize();
-    draw();
-
-    const resizeObserver = new ResizeObserver(() => {
-      resize();
-      draw();
-    });
-    resizeObserver.observe(host);
-
-    // Only animate while the hero is on screen
-    const visibilityObserver = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      if (visible) start();
-      else stop();
-    });
-    visibilityObserver.observe(host);
-
-    if (visible) start();
-
-    if (!reduceMotion) {
-      host.addEventListener("pointermove", onPointerMove, { passive: true });
-      host.addEventListener("pointerleave", onPointerLeave);
-    }
-
-    return () => {
-      stop();
-      resizeObserver.disconnect();
-      visibilityObserver.disconnect();
-      host.removeEventListener("pointermove", onPointerMove);
-      host.removeEventListener("pointerleave", onPointerLeave);
-    };
-  }, []);
-
-  return (
-    <>
-      <div
-        ref={spotRef}
-        aria-hidden="true"
-        className="hero-spotlight pointer-events-none absolute inset-0 -z-10"
-      />
-      <canvas
-        ref={canvasRef}
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 h-full w-full"
-      />
-    </>
-  );
-}
-
-/* A small gold dot plus a trailing ring that follows the mouse across the
-   whole page and grows over links and buttons.
-   Only shown on devices with a real mouse; the normal cursor stays visible. */
-function CursorGlow() {
-  const [enabled] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(hover: hover) and (pointer: fine)").matches &&
-      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-  const [onTarget, setOnTarget] = useState(false);
-  const [shown, setShown] = useState(false);
-
-  const x = useMotionValue(-100);
-  const y = useMotionValue(-100);
-  const ringX = useSpring(x, { stiffness: 140, damping: 18, mass: 0.6 });
-  const ringY = useSpring(y, { stiffness: 140, damping: 18, mass: 0.6 });
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-
-    function onMove(e) {
-      x.set(e.clientX);
-      y.set(e.clientY);
-      setShown(true);
-      setOnTarget(
-        Boolean(
-          e.target instanceof Element &&
-            e.target.closest(
-              "a, button, input, select, textarea, label, [role='button']"
-            )
-        )
-      );
-    }
-
-    function onLeaveWindow(e) {
-      if (!e.relatedTarget) setShown(false);
-    }
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    document.addEventListener("mouseout", onLeaveWindow);
-
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      document.removeEventListener("mouseout", onLeaveWindow);
-    };
-  }, [enabled, x, y]);
-
-  if (!enabled) return null;
-
-  return (
-    <>
-      <motion.div
-        aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-[#D7B45A] bg-[#D7B45A]/10"
-        style={{ x: ringX, y: ringY, marginLeft: -18, marginTop: -18 }}
-        animate={{ scale: onTarget ? 1.7 : 1, opacity: shown ? 1 : 0 }}
-        transition={{ duration: 0.25 }}
-      />
-      <motion.div
-        aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2 w-2 rounded-full bg-[#D7B45A]"
-        style={{ x, y, marginLeft: -4, marginTop: -4 }}
-        animate={{ opacity: shown ? 1 : 0 }}
-        transition={{ duration: 0.2 }}
-      />
-    </>
-  );
-}
-
-/* Tilts its children in 3D toward the mouse, then springs back. */
-function TiltCard({ children, className = "" }) {
-  const rotateX = useMotionValue(0);
-  const rotateY = useMotionValue(0);
-  const springX = useSpring(rotateX, { stiffness: 150, damping: 14 });
-  const springY = useSpring(rotateY, { stiffness: 150, damping: 14 });
-
-  function onMove(e) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width - 0.5;
-    const py = (e.clientY - rect.top) / rect.height - 0.5;
-
-    rotateY.set(px * 16);
-    rotateX.set(-py * 16);
-  }
-
-  function onLeave() {
-    rotateX.set(0);
-    rotateY.set(0);
-  }
-
-  return (
-    <motion.div
-      onPointerMove={onMove}
-      onPointerLeave={onLeave}
-      style={{ rotateX: springX, rotateY: springY, transformPerspective: 900 }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/* ==================================================
-   MAIN WEBSITE
+   G. MAIN WEBSITE  (page order is at the bottom of this function)
 ================================================== */
 
 function App() {
@@ -1648,13 +1710,18 @@ function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  /* NOTE: this wrapper uses overflow-x-clip (NOT overflow-x-hidden).
+     overflow-x-hidden silently breaks `position: sticky`, which is why the
+     header did not stay on screen before. It also has NO background colour,
+     so the site-wide background shows through. */
   return (
-    <div className="min-h-screen overflow-x-hidden bg-white text-slate-900">
+    <div className="min-h-screen overflow-x-clip text-slate-900">
 
-      {/* Cursor ring that follows the mouse (desktop only) */}
+      {/* G1. site-wide animated background + cursor ring */}
+      <SiteBackground />
       <CursorGlow />
 
-      {/* NAVIGATION */}
+      {/* G2. NAVIGATION (sticky) */}
       <header
         className={`sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl transition-shadow duration-300 ${
           scrolled ? "shadow-lg shadow-slate-900/10" : ""
@@ -1792,20 +1859,15 @@ function App() {
         </AnimatePresence>
       </header>
 
-      {/* HERO */}
+      {/* G3. HERO (transparent now: the site-wide background shows through) */}
       <section
         id="home"
-        className="relative isolate overflow-hidden bg-linear-to-b from-[#0B1F3A] via-[#0B1F3A] to-[#09182D] text-white"
+        className="relative isolate overflow-hidden text-white"
       >
-        {/* Background layers: grid, rings and soft light orbs */}
+        {/* Hero-only decoration: grid and rings */}
         <div className="hero-grid pointer-events-none absolute inset-0 -z-10" />
         <div className="pointer-events-none absolute -right-48 -top-48 -z-10 h-[600px] w-[600px] rounded-full border border-white/10" />
         <div className="pointer-events-none absolute -right-20 -top-20 -z-10 h-[380px] w-[380px] rounded-full border border-[#D7B45A]/20" />
-        <div className="pointer-events-none absolute -left-24 bottom-0 -z-10 h-96 w-96 rounded-full bg-blue-500/15 blur-[110px]" />
-        <div className="pointer-events-none absolute right-1/4 top-10 -z-10 h-72 w-72 rounded-full bg-[#D7B45A]/10 blur-[120px]" />
-
-        {/* Interactive network + cursor spotlight */}
-        <HeroBackground />
 
         <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pb-24 pt-16 md:grid-cols-2 md:px-8 md:pb-36 md:pt-24">
 
@@ -1977,34 +2039,36 @@ function App() {
         </motion.a>
       </section>
 
-      {/* AUDIENCE */}
-      <section id="explore" className="border-b border-slate-100 bg-white px-6 py-8">
-        <div className="mx-auto grid max-w-6xl gap-7 text-center sm:grid-cols-3">
-          {[
-            { icon: GraduationCap, title: "For Students" },
-            { icon: BriefcaseBusiness, title: "For Professionals" },
-            { icon: Users, title: "For Trainers" }
-          ].map((item) => {
-            const Icon = item.icon;
+      {/* G4. AUDIENCE (floating white box) */}
+      <section id="explore" className="px-6 py-10">
+        <FloatBox className="mx-auto max-w-6xl px-6 py-8">
+          <div className="grid gap-7 text-center sm:grid-cols-3">
+            {[
+              { icon: GraduationCap, title: "For Students" },
+              { icon: BriefcaseBusiness, title: "For Professionals" },
+              { icon: Users, title: "For Trainers" }
+            ].map((item) => {
+              const Icon = item.icon;
 
-            return (
-              <div
-                key={item.title}
-                className="flex items-center justify-center gap-3"
-              >
-                <Icon className="text-[#B28A36]" size={24} />
-                <span className="font-semibold text-[#102B50]">
-                  {item.title}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+              return (
+                <div
+                  key={item.title}
+                  className="flex items-center justify-center gap-3"
+                >
+                  <Icon className="text-[#B28A36]" size={24} />
+                  <span className="font-semibold text-[#102B50]">
+                    {item.title}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </FloatBox>
       </section>
 
-      {/* INTRODUCTION */}
-      <section className="px-6 py-24">
-        <div className="mx-auto max-w-3xl text-center">
+      {/* G5. INTRODUCTION (floating white box) */}
+      <section className="px-6 py-16">
+        <FloatBox lift={false} className="mx-auto max-w-4xl px-6 py-14 text-center md:px-16">
           <span className="text-xs font-bold tracking-[3px] text-[#B28A36]">
             WELCOME TO VYOM
           </span>
@@ -2018,27 +2082,27 @@ function App() {
             working professionals and curious minds can explore
             emerging technologies and develop skills for a changing world.
           </p>
-        </div>
+        </FloatBox>
       </section>
 
-      {/* PROGRAMS */}
-      <section id="programs" className="bg-[#F4F7FC] px-6 py-24">
+      {/* G6. PROGRAMS (three floating white cards) */}
+      <section id="programs" className="px-6 py-20">
         <div className="mx-auto max-w-7xl">
 
           <div className="mb-12 flex flex-wrap items-end justify-between gap-5">
             <div>
-              <span className="text-xs font-bold tracking-[3px] text-[#B28A36]">
+              <span className="text-xs font-bold tracking-[3px] text-[#D7B45A]">
                 WHAT YOU CAN LEARN
               </span>
 
-              <h2 className="mt-3 text-3xl font-extrabold text-[#102B50] md:text-4xl">
+              <h2 className="mt-3 text-3xl font-extrabold text-white md:text-4xl">
                 Explore Learning Pathways
               </h2>
             </div>
 
             <a
               href="#programs"
-              className="flex items-center gap-2 font-semibold text-[#102B50]"
+              className="flex items-center gap-2 font-semibold text-white transition hover:text-[#D7B45A]"
             >
               Explore all <ArrowRight size={17} />
             </a>
@@ -2049,15 +2113,7 @@ function App() {
               const Icon = program.icon;
 
               return (
-                <motion.div
-                  key={program.title}
-                  initial={{ opacity: 0, y: 25 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.12 }}
-                  whileHover={{ y: -7 }}
-                  className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition hover:shadow-xl"
-                >
+                <FloatBox key={program.title} delay={index * 0.12} className="p-8">
                   <div className="mb-7 flex h-14 w-14 items-center justify-center rounded-xl bg-[#102B50] text-[#D7B45A]">
                     <Icon size={28} />
                   </div>
@@ -2072,67 +2128,69 @@ function App() {
 
                   <a
                     href="#about"
-                    className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[#B28A36]"
+                    className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[#B28A36] transition hover:text-[#FF7A1A]"
                   >
                     Learn More
                     <ChevronRight size={17} />
                   </a>
-                </motion.div>
+                </FloatBox>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* JOB BOARD */}
+      {/* G7. JOB BOARD */}
       <JobBoard />
 
-      {/* ABOUT */}
-      <section id="about" className="bg-[#102B50] px-6 py-24 text-white">
-        <div className="mx-auto grid max-w-7xl gap-12 md:grid-cols-2">
-          <div>
-            <span className="text-xs font-bold tracking-[3px] text-[#D7B45A]">
-              ABOUT VYOM ACADEMY
-            </span>
+      {/* G8. ABOUT (floating white box) */}
+      <section id="about" className="px-6 py-20">
+        <FloatBox lift={false} className="mx-auto max-w-7xl p-8 md:p-14">
+          <div className="grid gap-12 md:grid-cols-2">
+            <div>
+              <span className="text-xs font-bold tracking-[3px] text-[#B28A36]">
+                ABOUT VYOM ACADEMY
+              </span>
 
-            <h2 className="mt-5 text-4xl font-extrabold leading-tight md:text-5xl">
-              Empowering Minds for an Intelligent Future.
-            </h2>
-          </div>
+              <h2 className="mt-5 text-4xl font-extrabold leading-tight text-[#102B50] md:text-5xl">
+                Empowering Minds for an Intelligent Future.
+              </h2>
+            </div>
 
-          <div>
-            <p className="leading-8 text-blue-100/70">
-              Vyom Academy aims to bridge the gap between education
-              and emerging technology. Our vision is to make modern
-              technology learning accessible to students, professionals
-              and lifelong learners.
-            </p>
+            <div>
+              <p className="leading-8 text-slate-600">
+                Vyom Academy aims to bridge the gap between education
+                and emerging technology. Our vision is to make modern
+                technology learning accessible to students, professionals
+                and lifelong learners.
+              </p>
 
-            <div className="mt-8 space-y-5">
-              {[
-                "Practical and technology-focused learning",
-                "Opportunities for continuous skill development",
-                "A learning community for curious minds"
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <CheckCircle2
-                    className="shrink-0 text-[#D7B45A]"
-                    size={20}
-                  />
-                  <span className="text-sm text-blue-50">{item}</span>
-                </div>
-              ))}
+              <div className="mt-8 space-y-5">
+                {[
+                  "Practical and technology-focused learning",
+                  "Opportunities for continuous skill development",
+                  "A learning community for curious minds"
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-3">
+                    <CheckCircle2
+                      className="shrink-0 text-[#B28A36]"
+                      size={20}
+                    />
+                    <span className="text-sm text-slate-700">{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        </FloatBox>
       </section>
 
-      {/* FEEDBACK */}
+      {/* G9. FEEDBACK */}
       <FeedbackSection />
 
-      {/* CALL TO ACTION */}
+      {/* G10. CALL TO ACTION (dark banner with a gold glow) */}
       <section className="px-6 py-20">
-        <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl bg-[#102B50] px-7 py-14 text-center text-white md:px-16">
+        <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl border border-[#D7B45A]/50 bg-gradient-to-br from-[#0B1F3A] to-[#14306E] px-7 py-14 text-center text-white shadow-[0_0_80px_-10px_rgba(215,180,90,0.35)] md:px-16">
           <Target className="mx-auto mb-5 text-[#D7B45A]" size={38} />
 
           <h2 className="text-3xl font-extrabold md:text-4xl">
@@ -2146,7 +2204,7 @@ function App() {
 
           <a
             href="#programs"
-            className="mt-8 inline-flex items-center gap-3 rounded-lg bg-[#D7B45A] px-7 py-4 font-bold text-[#102B50] hover:bg-[#E9CD83]"
+            className="mt-8 inline-flex items-center gap-3 rounded-lg bg-[#D7B45A] px-7 py-4 font-bold text-[#102B50] transition hover:-translate-y-0.5 hover:bg-[#E9CD83]"
           >
             Start Exploring
             <ArrowRight size={18} />
@@ -2154,7 +2212,7 @@ function App() {
         </div>
       </section>
 
-      {/* FOOTER */}
+      {/* G11. FOOTER */}
       <footer className="bg-[#09182D] px-6 py-12 text-white">
         <div className="mx-auto max-w-7xl">
 
@@ -2192,7 +2250,7 @@ function App() {
         </div>
       </footer>
 
-      {/* STUDENT / TRAINER AUTHENTICATION */}
+      {/* G12. STUDENT / TRAINER AUTHENTICATION */}
       <AnimatePresence>
         {activeLogin && (
           <AuthModal
