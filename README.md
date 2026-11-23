@@ -1,16 +1,43 @@
-# React + Vite
+# Vyom Academy | By DN Marketing
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+**Learn Today. Lead Tomorrow.**
 
-Currently, two official plugins are available:
+Landing page for Vyom Academy: AI, Generative AI and Machine Learning
+learning pathways, a jobs and careers board, and student / trainer sign-in.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Built with React 19, Vite, Tailwind CSS v4, Framer Motion and Lucide icons.
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Open the URL shown in the terminal (the site is served under `/vyom-academy/`).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Build
+
+```bash
+npm run build
+npm run preview
+```
+
+## Deployment
+
+Every push to `main` is built and published to GitHub Pages by
+`.github/workflows/deploy.yml`.
+
+## Where to edit things
+
+| What | Where |
+| --- | --- |
+| Hero text, buttons, trust strip, floating chips | `src/App.jsx` (`trustPoints`, `heroChips`, `HERO` section) |
+| Learning programs | `programs` array at the top of `src/App.jsx` |
+| Animations (float, shimmer, glow) | `src/index.css` |
+| Page title and SEO description | `index.html` |
+| Logo | `public/vyom-logo.png` |
+
+> The hero trust strip currently lists only facts that are true today.
+> When you have real numbers (learners trained, ratings, partner companies),
+> add them to `trustPoints` in `src/App.jsx`.

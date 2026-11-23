@@ -1,6 +1,10 @@
-
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useSpring
+} from "framer-motion";
 import {
   ArrowRight,
   BrainCircuit,
@@ -30,7 +34,11 @@ import {
   LockKeyhole,
   Eye,
   EyeOff,
-  UserRound
+  UserRound,
+  ChevronDown,
+  Rocket,
+  BadgeCheck,
+  Zap
 } from "lucide-react";
 
 // Automatically handles both localhost and GitHub Pages.
@@ -68,6 +76,44 @@ const navItems = [
   ["About Us", "#about"],
   ["Feedback", "#feedback"]
 ];
+
+/* Trust strip shown under the hero buttons.
+   Update these with real numbers (learners trained, ratings, partners)
+   once you have them - only publish figures you can stand behind. */
+const trustPoints = [
+  { icon: BrainCircuit, label: "3 AI learning pathways" },
+  { icon: Zap, label: "Practical, hands-on approach" },
+  { icon: BadgeCheck, label: "Beginner friendly" }
+];
+
+/* Floating chips around the hero logo card */
+const heroChips = [
+  {
+    icon: BrainCircuit,
+    label: "AI Skills",
+    position: "-left-3 top-10 md:-left-5 xl:-left-10",
+    float: "animate-float-slow"
+  },
+  {
+    icon: Rocket,
+    label: "Career Ready",
+    position: "-right-3 top-1/2 md:-right-4 xl:-right-8",
+    float: "animate-float-delay"
+  },
+  {
+    icon: Users,
+    label: "Expert Mentors",
+    position: "-bottom-4 left-6 sm:left-2",
+    float: "animate-float"
+  }
+];
+
+/* Stagger helper for the hero entrance animation */
+const heroItem = (delay) => ({
+  initial: { opacity: 0, y: 28 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.7, delay, ease: "easeOut" }
+});
 
 const emptyJobForm = {
   title: "",
@@ -797,8 +843,8 @@ function FeedbackSection() {
    STUDENT AND TRAINER AUTHENTICATION UI
 ================================================== */
 
-function AuthModal({ role, onClose }) {
-  const [mode, setMode] = useState("signin");
+function AuthModal({ role, onClose, initialMode = "signin" }) {
+  const [mode, setMode] = useState(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState("");
@@ -1265,18 +1311,355 @@ function AuthModal({ role, onClose }) {
 }
 
 /* ==================================================
+   INTERACTIVE EFFECTS
+================================================== */
+
+/* Animated "neural network" behind the hero.
+   Dots drift slowly and connect to each other. Near the cursor they
+   gently move away and gold lines reach out to the pointer.
+   A soft gold spotlight also follows the mouse.
+   Pauses when the hero is off-screen and respects reduced motion. */
+function HeroBackground() {
+  const canvasRef = useRef(null);
+  const spotRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const spot = spotRef.current;
+    const host = canvas?.parentElement;
+    const ctx = canvas?.getContext("2d");
+
+    if (!canvas || !host || !ctx) return undefined;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    const LINK_DISTANCE = 130;
+    const MOUSE_DISTANCE = 170;
+
+    let width = 0;
+    let height = 0;
+    let nodes = [];
+    let frameId = 0;
+    let visible = true;
+    const mouse = { x: 0, y: 0, active: false };
+
+    function resize() {
+      const rect = host.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      width = rect.width;
+      height = rect.height;
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const count = Math.min(90, Math.round((width * height) / 15000));
+
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        r: Math.random() * 1.4 + 0.8,
+        gold: Math.random() < 0.22
+      }));
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+
+      for (const n of nodes) {
+        if (mouse.active) {
+          const dx = n.x - mouse.x;
+          const dy = n.y - mouse.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < MOUSE_DISTANCE && dist > 1) {
+            const push = (1 - dist / MOUSE_DISTANCE) * 0.7;
+            n.x += (dx / dist) * push;
+            n.y += (dy / dist) * push;
+          }
+        }
+
+        n.x += n.vx;
+        n.y += n.vy;
+
+        if (n.x < -10) n.x = width + 10;
+        if (n.x > width + 10) n.x = -10;
+        if (n.y < -10) n.y = height + 10;
+        if (n.y > height + 10) n.y = -10;
+      }
+
+      // Lines between nearby dots
+      ctx.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+
+          if (dist < LINK_DISTANCE) {
+            const alpha = (1 - dist / LINK_DISTANCE) * 0.28;
+            ctx.strokeStyle =
+              a.gold || b.gold
+                ? `rgba(215,180,90,${alpha})`
+                : `rgba(147,180,255,${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Gold lines reaching toward the cursor
+      if (mouse.active) {
+        for (const n of nodes) {
+          const dist = Math.hypot(n.x - mouse.x, n.y - mouse.y);
+
+          if (dist < MOUSE_DISTANCE) {
+            ctx.strokeStyle = `rgba(233,205,131,${(1 - dist / MOUSE_DISTANCE) * 0.55})`;
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // The dots
+      for (const n of nodes) {
+        ctx.fillStyle = n.gold
+          ? "rgba(233,205,131,0.9)"
+          : "rgba(190,210,255,0.7)";
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function loop() {
+      if (!document.hidden) draw();
+      frameId = requestAnimationFrame(loop);
+    }
+
+    function start() {
+      if (!frameId && !reduceMotion) loop();
+    }
+
+    function stop() {
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+    }
+
+    function onPointerMove(e) {
+      const rect = host.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+      mouse.active = true;
+
+      if (spot) {
+        spot.style.setProperty("--mx", `${mouse.x}px`);
+        spot.style.setProperty("--my", `${mouse.y}px`);
+        spot.classList.add("is-active");
+      }
+    }
+
+    function onPointerLeave() {
+      mouse.active = false;
+      spot?.classList.remove("is-active");
+    }
+
+    resize();
+    draw();
+
+    const resizeObserver = new ResizeObserver(() => {
+      resize();
+      draw();
+    });
+    resizeObserver.observe(host);
+
+    // Only animate while the hero is on screen
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) start();
+      else stop();
+    });
+    visibilityObserver.observe(host);
+
+    if (visible) start();
+
+    if (!reduceMotion) {
+      host.addEventListener("pointermove", onPointerMove, { passive: true });
+      host.addEventListener("pointerleave", onPointerLeave);
+    }
+
+    return () => {
+      stop();
+      resizeObserver.disconnect();
+      visibilityObserver.disconnect();
+      host.removeEventListener("pointermove", onPointerMove);
+      host.removeEventListener("pointerleave", onPointerLeave);
+    };
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={spotRef}
+        aria-hidden="true"
+        className="hero-spotlight pointer-events-none absolute inset-0 -z-10"
+      />
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full"
+      />
+    </>
+  );
+}
+
+/* A small gold dot plus a trailing ring that follows the mouse across the
+   whole page and grows over links and buttons.
+   Only shown on devices with a real mouse; the normal cursor stays visible. */
+function CursorGlow() {
+  const [enabled] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  const [onTarget, setOnTarget] = useState(false);
+  const [shown, setShown] = useState(false);
+
+  const x = useMotionValue(-100);
+  const y = useMotionValue(-100);
+  const ringX = useSpring(x, { stiffness: 140, damping: 18, mass: 0.6 });
+  const ringY = useSpring(y, { stiffness: 140, damping: 18, mass: 0.6 });
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+
+    function onMove(e) {
+      x.set(e.clientX);
+      y.set(e.clientY);
+      setShown(true);
+      setOnTarget(
+        Boolean(
+          e.target instanceof Element &&
+            e.target.closest(
+              "a, button, input, select, textarea, label, [role='button']"
+            )
+        )
+      );
+    }
+
+    function onLeaveWindow(e) {
+      if (!e.relatedTarget) setShown(false);
+    }
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("mouseout", onLeaveWindow);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      document.removeEventListener("mouseout", onLeaveWindow);
+    };
+  }, [enabled, x, y]);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-[#D7B45A] bg-[#D7B45A]/10"
+        style={{ x: ringX, y: ringY, marginLeft: -18, marginTop: -18 }}
+        animate={{ scale: onTarget ? 1.7 : 1, opacity: shown ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+      />
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-2 w-2 rounded-full bg-[#D7B45A]"
+        style={{ x, y, marginLeft: -4, marginTop: -4 }}
+        animate={{ opacity: shown ? 1 : 0 }}
+        transition={{ duration: 0.2 }}
+      />
+    </>
+  );
+}
+
+/* Tilts its children in 3D toward the mouse, then springs back. */
+function TiltCard({ children, className = "" }) {
+  const rotateX = useMotionValue(0);
+  const rotateY = useMotionValue(0);
+  const springX = useSpring(rotateX, { stiffness: 150, damping: 14 });
+  const springY = useSpring(rotateY, { stiffness: 150, damping: 14 });
+
+  function onMove(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+
+    rotateY.set(px * 16);
+    rotateX.set(-py * 16);
+  }
+
+  function onLeave() {
+    rotateX.set(0);
+    rotateY.set(0);
+  }
+
+  return (
+    <motion.div
+      onPointerMove={onMove}
+      onPointerLeave={onLeave}
+      style={{ rotateX: springX, rotateY: springY, transformPerspective: 900 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ==================================================
    MAIN WEBSITE
 ================================================== */
 
 function App() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [activeLogin, setActiveLogin] = useState("");
+  const [authMode, setAuthMode] = useState("signin");
+  const [scrolled, setScrolled] = useState(false);
+
+  function openAuth(role, mode = "signin") {
+    setAuthMode(mode);
+    setActiveLogin(role);
+  }
+
+  // Adds a soft shadow to the sticky nav once the page is scrolled
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-white text-slate-900">
 
+      {/* Cursor ring that follows the mouse (desktop only) */}
+      <CursorGlow />
+
       {/* NAVIGATION */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+      <header
+        className={`sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl transition-shadow duration-300 ${
+          scrolled ? "shadow-lg shadow-slate-900/10" : ""
+        }`}
+      >
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 md:px-8">
 
           <a
@@ -1291,8 +1674,11 @@ function App() {
             />
 
             <div>
-              <h1 className="text-lg font-extrabold tracking-wide text-[#102B50] sm:text-xl">
+              <h1 className="flex flex-wrap items-baseline gap-x-2 text-lg font-extrabold tracking-wide text-[#102B50] sm:text-xl">
                 VYOM ACADEMY
+                <span className="hidden text-xs font-semibold tracking-normal text-slate-500 sm:inline">
+                  | By DN Marketing
+                </span>
               </h1>
 
               <p className="text-[9px] font-bold tracking-[2.5px] text-[#B28A36]">
@@ -1301,37 +1687,45 @@ function App() {
             </div>
           </a>
 
-          <div className="hidden items-center gap-7 lg:flex">
+          <div className="hidden items-center gap-7 xl:flex">
             {navItems.map(([label, link]) => (
               <a
                 key={label}
                 href={link}
-                className="text-sm font-medium text-slate-600 transition hover:text-[#B28A36]"
+                className="group relative text-sm font-medium text-slate-600 transition hover:text-[#B28A36]"
               >
                 {label}
+                <span className="absolute -bottom-1 left-0 h-0.5 w-0 bg-[#D7B45A] transition-all duration-300 group-hover:w-full" />
               </a>
             ))}
           </div>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <button
-              onClick={() => setActiveLogin("Trainer")}
+              onClick={() => openAuth("Trainer")}
               className="rounded-lg px-4 py-3 text-sm font-semibold text-[#102B50] transition hover:bg-slate-100"
             >
               Trainer Login
             </button>
 
             <button
-              onClick={() => setActiveLogin("Student")}
-              className="rounded-lg bg-[#102B50] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#1C416E]"
+              onClick={() => openAuth("Student")}
+              className="rounded-lg border border-[#102B50]/20 px-4 py-3 text-sm font-semibold text-[#102B50] transition hover:border-[#102B50] hover:bg-slate-50"
             >
               Student Login
+            </button>
+
+            <button
+              onClick={() => openAuth("Student", "register")}
+              className="rounded-lg bg-[#D7B45A] px-5 py-3 text-sm font-bold text-[#102B50] shadow-lg shadow-[#D7B45A]/30 transition hover:-translate-y-0.5 hover:bg-[#E9CD83]"
+            >
+              Enroll Now
             </button>
           </div>
 
           <button
             onClick={() => setMobileMenu(!mobileMenu)}
-            className="rounded-lg border border-slate-200 p-2 text-[#102B50] md:hidden"
+            className="rounded-lg border border-slate-200 p-2 text-[#102B50] xl:hidden"
             aria-label="Toggle navigation"
           >
             {mobileMenu ? <X size={24} /> : <Menu size={24} />}
@@ -1345,7 +1739,7 @@ function App() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden border-t border-slate-200 bg-white md:hidden"
+              className="overflow-hidden border-t border-slate-200 bg-white xl:hidden"
             >
               <div className="flex flex-col gap-1 px-6 py-5">
                 {navItems.map(([label, link]) => (
@@ -1362,9 +1756,19 @@ function App() {
                 <button
                   onClick={() => {
                     setMobileMenu(false);
-                    setActiveLogin("Trainer");
+                    openAuth("Student", "register");
                   }}
-                  className="mt-3 rounded-lg border border-[#102B50] px-4 py-3 font-semibold text-[#102B50]"
+                  className="mt-3 rounded-lg bg-[#D7B45A] px-4 py-3 font-bold text-[#102B50]"
+                >
+                  Enroll Now
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMobileMenu(false);
+                    openAuth("Trainer");
+                  }}
+                  className="rounded-lg border border-[#102B50] px-4 py-3 font-semibold text-[#102B50]"
                 >
                   Trainer Login
                 </button>
@@ -1372,12 +1776,16 @@ function App() {
                 <button
                   onClick={() => {
                     setMobileMenu(false);
-                    setActiveLogin("Student");
+                    openAuth("Student");
                   }}
                   className="rounded-lg bg-[#102B50] px-4 py-3 font-semibold text-white"
                 >
                   Student Login
                 </button>
+
+                <p className="pt-3 text-center text-xs font-medium text-slate-400">
+                  Vyom Academy | By DN Marketing
+                </p>
               </div>
             </motion.div>
           )}
@@ -1387,93 +1795,190 @@ function App() {
       {/* HERO */}
       <section
         id="home"
-        className="relative isolate overflow-hidden bg-[#0B1F3A] text-white"
+        className="relative isolate overflow-hidden bg-linear-to-b from-[#0B1F3A] via-[#0B1F3A] to-[#09182D] text-white"
       >
+        {/* Background layers: grid, rings and soft light orbs */}
+        <div className="hero-grid pointer-events-none absolute inset-0 -z-10" />
         <div className="pointer-events-none absolute -right-48 -top-48 -z-10 h-[600px] w-[600px] rounded-full border border-white/10" />
         <div className="pointer-events-none absolute -right-20 -top-20 -z-10 h-[380px] w-[380px] rounded-full border border-[#D7B45A]/20" />
-        <div className="pointer-events-none absolute bottom-0 left-0 -z-10 h-80 w-80 rounded-full bg-blue-500/10 blur-[100px]" />
+        <div className="pointer-events-none absolute -left-24 bottom-0 -z-10 h-96 w-96 rounded-full bg-blue-500/15 blur-[110px]" />
+        <div className="pointer-events-none absolute right-1/4 top-10 -z-10 h-72 w-72 rounded-full bg-[#D7B45A]/10 blur-[120px]" />
 
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 py-20 md:grid-cols-2 md:px-8 md:py-28">
+        {/* Interactive network + cursor spotlight */}
+        <HeroBackground />
 
-          <motion.div
-            initial={{ opacity: 0, y: 35 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#D7B45A]/30 bg-[#D7B45A]/10 px-4 py-2 text-xs font-semibold tracking-wider text-[#E8CA7A]">
+        <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 pb-24 pt-16 md:grid-cols-2 md:px-8 md:pb-36 md:pt-24">
+
+          <div>
+            {/* Badge */}
+            <motion.div
+              {...heroItem(0)}
+              className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-[#D7B45A]/30 bg-[#D7B45A]/10 px-4 py-2 text-[13px] font-semibold tracking-wider text-[#E8CA7A]"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#D7B45A] opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#D7B45A]" />
+              </span>
               <Sparkles size={15} />
               EDUCATION FOR THE FUTURE
-            </div>
+            </motion.div>
 
-            <h2 className="text-5xl font-extrabold leading-[1.12] tracking-tight sm:text-6xl lg:text-[4.25rem]">
-              Learn Today.
-              <span className="mt-2 block whitespace-normal text-[clamp(2.5rem,5.2vw,4.25rem)] text-[#D7B45A] sm:whitespace-nowrap">
+            {/* Headline */}
+            <h2 className="font-extrabold leading-[1.12] tracking-tight">
+              <motion.span
+                {...heroItem(0.15)}
+                className="block text-[clamp(2.5rem,5.2vw,4.25rem)]"
+              >
+                Learn Today.
+              </motion.span>
+
+              <motion.span
+                {...heroItem(0.3)}
+                className="gold-shimmer mt-2 block whitespace-normal pb-2 text-[clamp(2.5rem,5.2vw,4.25rem)] sm:whitespace-nowrap"
+              >
                 Lead Tomorrow.
-              </span>
+              </motion.span>
             </h2>
 
-            <p className="mt-7 max-w-xl text-base leading-8 text-blue-100/75 md:text-lg">
-              Discover the power of Artificial Intelligence.
-              Develop industry-relevant skills, learn from experts,
-              and prepare yourself for the opportunities of tomorrow.
-            </p>
+            {/* Intro copy */}
+            <motion.p
+              {...heroItem(0.45)}
+              className="mt-6 max-w-xl text-base leading-8 text-blue-100/90 md:text-lg"
+            >
+              Discover the power of Artificial Intelligence. Build
+              practical, industry-relevant skills in AI, Generative AI
+              and Machine Learning, learn from experts, and prepare
+              yourself for the opportunities of tomorrow.
+            </motion.p>
 
-            <div className="mt-9 flex flex-wrap gap-4">
+            {/* Call to action buttons */}
+            <motion.div
+              {...heroItem(0.6)}
+              className="mt-9 flex flex-wrap gap-4"
+            >
               <a
                 href="#programs"
-                className="inline-flex items-center gap-3 rounded-lg bg-[#D7B45A] px-7 py-4 font-bold text-[#102B50] hover:bg-[#E9CD83]"
+                className="group inline-flex items-center gap-3 rounded-lg bg-[#D7B45A] px-7 py-4 font-bold text-[#102B50] shadow-lg shadow-[#D7B45A]/25 transition duration-300 hover:-translate-y-1 hover:bg-[#E9CD83] hover:shadow-xl hover:shadow-[#D7B45A]/40"
               >
-                Explore Programs
-                <ArrowRight size={19} />
+                Start Learning
+                <ArrowRight
+                  size={19}
+                  className="transition-transform duration-300 group-hover:translate-x-1.5"
+                />
               </a>
 
               <a
                 href="#jobs"
-                className="rounded-lg border border-white/30 px-7 py-4 font-semibold text-white hover:bg-white/10"
+                className="rounded-lg border border-white/30 px-7 py-4 font-semibold text-white transition duration-300 hover:-translate-y-1 hover:border-[#D7B45A]/60 hover:bg-white/10"
               >
                 Explore Careers
               </a>
-            </div>
+            </motion.div>
 
-            <div className="mt-12 border-l-2 border-[#D7B45A] pl-5">
+            {/* Trust strip */}
+            <motion.ul
+              {...heroItem(0.75)}
+              className="mt-10 flex flex-wrap gap-x-7 gap-y-3 border-t border-white/10 pt-6"
+            >
+              {trustPoints.map((point) => {
+                const Icon = point.icon;
+
+                return (
+                  <li
+                    key={point.label}
+                    className="flex items-center gap-2 text-sm font-medium text-blue-50/90"
+                  >
+                    <Icon size={18} className="shrink-0 text-[#D7B45A]" />
+                    {point.label}
+                  </li>
+                );
+              })}
+            </motion.ul>
+
+            {/* Quote */}
+            <motion.div
+              {...heroItem(0.9)}
+              className="mt-8 border-l-2 border-[#D7B45A] pl-5"
+            >
               <p className="max-w-lg text-sm italic leading-7 text-blue-100/75">
                 "The future belongs to those who learn, adapt, and build with intelligence."
               </p>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
 
-          {/* ORIGINAL LOGO */}
+          {/* LOGO CARD */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1 }}
+            transition={{ duration: 1, delay: 0.25 }}
             className="relative mx-auto w-full max-w-md"
           >
-            <div className="absolute inset-0 rounded-full bg-[#D7B45A]/10 blur-[90px]" />
+            {/* Pulsing gold halo */}
+            <div className="animate-glow absolute -inset-6 rounded-[2.5rem] bg-[#D7B45A]/25 blur-[70px]" />
 
-            <div className="relative overflow-hidden rounded-3xl border border-[#D7B45A]/30 bg-white px-5 py-5 shadow-2xl sm:px-8 sm:py-7">
-              <img
-                src={logoSrc}
-                alt="Vyom Academy original logo"
-                className="h-72 w-full scale-110 object-contain md:h-[390px]"
-              />
+            {/* Floating logo card: floats up/down, tilts toward the mouse,
+                and the logo itself wiggles (faster on hover) */}
+            <div className="animate-float relative">
+              <TiltCard className="relative overflow-hidden rounded-3xl border border-[#D7B45A]/40 bg-white px-5 py-5 shadow-[0_30px_80px_-20px_rgba(215,180,90,0.45)] ring-1 ring-white/20 sm:px-8 sm:py-7">
+                <img
+                  src={logoSrc}
+                  alt="Vyom Academy original logo"
+                  className="animate-wiggle h-72 w-full scale-110 cursor-pointer object-contain md:h-[390px]"
+                />
 
-              <div className="mt-3 border-t border-slate-200 pt-5 text-center">
-                <h3 className="text-2xl font-extrabold tracking-wide text-[#102B50]">
-                  VYOM ACADEMY
-                </h3>
+                <div className="mt-3 border-t border-slate-200 pt-5 text-center">
+                  <h3 className="text-2xl font-extrabold tracking-wide text-[#102B50]">
+                    VYOM ACADEMY
+                  </h3>
 
-                <p className="mt-2 text-xs font-bold tracking-[3px] text-[#B28A36]">
-                  LEARN • INNOVATE • EXCEL
-                </p>
-              </div>
+                  <p className="mt-2 text-xs font-bold tracking-[3px] text-[#B28A36]">
+                    LEARN • INNOVATE • EXCEL
+                  </p>
+
+                  <p className="mt-3 text-[11px] font-semibold tracking-wide text-slate-400">
+                    By DN Marketing
+                  </p>
+                </div>
+              </TiltCard>
             </div>
+
+            {/* Floating chips */}
+            {heroChips.map((chip) => {
+              const Icon = chip.icon;
+
+              return (
+                <div
+                  key={chip.label}
+                  className={`absolute z-10 ${chip.position} ${chip.float}`}
+                >
+                  <div className="flex items-center gap-2 rounded-full border border-white/20 bg-[#0B1F3A]/85 px-4 py-2.5 text-xs font-semibold text-white shadow-xl backdrop-blur">
+                    <Icon size={16} className="text-[#D7B45A]" />
+                    {chip.label}
+                  </div>
+                </div>
+              );
+            })}
           </motion.div>
         </div>
+
+        {/* SCROLL CUE */}
+        <motion.a
+          href="#explore"
+          aria-label="Scroll to explore"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.4, duration: 0.8 }}
+          className="absolute inset-x-0 bottom-6 hidden justify-center md:flex"
+        >
+          <span className="animate-nudge flex flex-col items-center gap-1 text-[10px] font-semibold tracking-[3px] text-blue-100/60 transition hover:text-[#D7B45A]">
+            SCROLL TO EXPLORE
+            <ChevronDown size={20} />
+          </span>
+        </motion.a>
       </section>
 
       {/* AUDIENCE */}
-      <section className="border-b border-slate-100 bg-white px-6 py-8">
+      <section id="explore" className="border-b border-slate-100 bg-white px-6 py-8">
         <div className="mx-auto grid max-w-6xl gap-7 text-center sm:grid-cols-3">
           {[
             { icon: GraduationCap, title: "For Students" },
@@ -1662,6 +2167,10 @@ function App() {
               <p className="mt-3 text-sm text-blue-100/50">
                 Learn. Innovate. Excel.
               </p>
+
+              <p className="mt-2 text-sm font-semibold text-[#D7B45A]">
+                Vyom Academy | By DN Marketing
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-6 text-sm text-blue-100/70">
@@ -1678,7 +2187,7 @@ function App() {
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-center text-xs text-blue-100/40">
-            © {new Date().getFullYear()} Vyom Academy. All rights reserved.
+            © {new Date().getFullYear()} Vyom Academy | By DN Marketing. All rights reserved.
           </div>
         </div>
       </footer>
@@ -1687,8 +2196,9 @@ function App() {
       <AnimatePresence>
         {activeLogin && (
           <AuthModal
-            key={activeLogin}
+            key={`${activeLogin}-${authMode}`}
             role={activeLogin}
+            initialMode={authMode}
             onClose={() => setActiveLogin("")}
           />
         )}
